@@ -11,6 +11,7 @@ export interface RowResult {
   sourceValue: string;
   checkValue: string;
   status: ComparisonStatus;
+  explanation?: string;
 }
 
 export interface AiAnalysisResult {
