@@ -1,0 +1,43 @@
+import React from 'react';
+import { ComparisonStatus } from '../types';
+
+interface StatusBadgeProps {
+  status: ComparisonStatus;
+}
+
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+  switch (status) {
+    case ComparisonStatus.MATCH:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+          ตรงกัน (Match)
+        </span>
+      );
+    case ComparisonStatus.MISMATCH:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+          ไม่ตรงกัน (Mismatch)
+        </span>
+      );
+    case ComparisonStatus.MISSING_IN_CHECK:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+          ขาด (Missing)
+        </span>
+      );
+    case ComparisonStatus.EXTRA_IN_CHECK:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+          เกิน (Extra)
+        </span>
+      );
+    case ComparisonStatus.EMPTY_BOTH:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-400">
+          -
+        </span>
+      );
+    default:
+      return null;
+  }
+};

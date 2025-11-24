@@ -1,0 +1,5 @@
+{
+  "name": "Excel AI Comparator",
+  "description": "An intelligent tool to compare two datasets (Source vs Check) and identify matches, mismatches, missing data, or extra entries, enhanced with AI analysis.",
+  "requestFramePermissions": []
+}
