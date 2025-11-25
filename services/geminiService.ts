@@ -13,21 +13,21 @@ export const analyzeDiscrepancies = async (sourceData: string, checkData: string
   const modelId = 'gemini-2.5-flash';
 
   const prompt = `
-    You are an expert Excel Data Analyst.
+    คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์ข้อมูล Excel (Excel Data Analyst)
     
-    I have two columns of data.
-    Column A (Source):
-    ${sourceData.substring(0, 10000)} ... (truncated if too long)
+    ฉันมีข้อมูล 2 คอลัมน์ที่ต้องการเปรียบเทียบ:
+    คอลัมน์ A (ต้นฉบับ):
+    ${sourceData.substring(0, 10000)} ... (ตัดทอนหากยาวเกินไป)
 
-    Column B (Check):
-    ${checkData.substring(0, 10000)} ... (truncated if too long)
+    คอลัมน์ B (ตรวจสอบ):
+    ${checkData.substring(0, 10000)} ... (ตัดทอนหากยาวเกินไป)
 
-    Please analyze the differences between these two columns.
-    1. Summarize the main discrepancies (e.g., "Row 5 differs due to spelling", "Dates are formatted differently").
-    2. Provide 3-5 specific suggestions on how to clean or fix the data in Column B to match Column A.
-    3. Detect patterns (e.g., all mismatches are due to capitalization or whitespace).
+    กรุณาวิเคราะห์ความแตกต่างระหว่างสองคอลัมน์นี้ และตอบเป็น "ภาษาไทย":
+    1. สรุปความผิดปกติหลัก (เช่น "แถวที่ 5 ต่างกันเพราะการสะกดคำ", "รูปแบบวันที่ไม่ตรงกัน")
+    2. ให้คำแนะนำ 3-5 ข้อ เพื่อแก้ไขข้อมูลในคอลัมน์ B ให้ตรงกับคอลัมน์ A
+    3. ตรวจจับรูปแบบของข้อผิดพลาด (เช่น ทั้งหมดเป็นเรื่องตัวพิมพ์เล็กใหญ่ หรือเว้นวรรค)
     
-    Output JSON.
+    ส่งผลลัพธ์กลับเป็น JSON ตามโครงสร้างที่กำหนด (ค่าข้างในเป็นภาษาไทย)
   `;
 
   try {

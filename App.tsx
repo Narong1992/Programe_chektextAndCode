@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { ComparisonRow } from './components/ComparisonRow';
+import { AnalysisResult } from './components/AnalysisResult';
+import { InputPanel } from './components/InputPanel';
 import { analyzeDiscrepancies } from './services/geminiService';
-import { RowResult, ComparisonStatus } from './types';
+import { RowResult, ComparisonStatus, AiAnalysisResult } from './types';
 
 function App() {
   // Input states
@@ -15,7 +17,7 @@ function App() {
   
   // AI states
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<{ summary: string; suggestions: string[], patternDetected?: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResult | null>(null);
 
   // Core Comparison Logic
   const compareData = useCallback(() => {
@@ -46,13 +48,6 @@ function App() {
       let status = ComparisonStatus.EMPTY_BOTH;
       let explanation = '';
 
-      // Logic: 
-      // 1. Both empty lines -> EMPTY_BOTH
-      // 2. Content matches -> MATCH
-      // 3. Source has content, Check empty -> MISSING
-      // 4. Source empty, Check has content -> EXTRA
-      // 5. Both have content but differ -> MISMATCH
-
       if (src === '' && chk === '') {
         status = ComparisonStatus.EMPTY_BOTH;
       } else if (src === chk) {
@@ -61,24 +56,24 @@ function App() {
       } else if (src !== '' && chk === '') {
         status = ComparisonStatus.MISSING_IN_CHECK;
         newStats.missing++;
-        explanation = 'Missing in check';
+        explanation = 'ไม่มีในข้อมูลตรวจสอบ';
       } else if (src === '' && chk !== '') {
         status = ComparisonStatus.EXTRA_IN_CHECK;
         newStats.extra++;
-        explanation = 'Extra in check';
+        explanation = 'ข้อมูลเกินมา';
       } else {
         status = ComparisonStatus.MISMATCH;
         newStats.mismatch++;
         
         // Detailed Mismatch Analysis
         if (src.toLowerCase() === chk.toLowerCase()) {
-            explanation = 'Case sensitive diff'; // ตัวพิมพ์เล็ก/ใหญ่ต่างกัน
+            explanation = 'ตัวพิมพ์ต่างกัน'; // Case sensitive
         } else if (src.replace(/\s+/g, '') === chk.replace(/\s+/g, '')) {
-            explanation = 'Whitespace diff'; // การเว้นวรรคต่างกัน
+            explanation = 'เว้นวรรคต่างกัน'; // Whitespace
         } else if (!isNaN(Number(src)) && !isNaN(Number(chk))) {
-            explanation = 'Numeric mismatch'; // ค่าตัวเลขไม่ตรงกัน
+            explanation = 'ตัวเลขไม่ตรงกัน'; // Numeric
         } else {
-            explanation = 'Content differs'; // ข้อความต่างกัน
+            explanation = 'เนื้อหาต่างกัน'; // Content differs
         }
       }
 
@@ -124,113 +119,83 @@ function App() {
       return;
     }
 
-    // Prepare data for Excel
     const dataToExport = results.map(row => {
       let statusText = '';
       switch(row.status) {
-        case ComparisonStatus.MATCH: statusText = 'ตรงกัน (Match)'; break;
-        case ComparisonStatus.MISMATCH: statusText = 'ไม่ตรงกัน (Mismatch)'; break;
-        case ComparisonStatus.MISSING_IN_CHECK: statusText = 'ขาด (Missing)'; break;
-        case ComparisonStatus.EXTRA_IN_CHECK: statusText = 'เกิน (Extra)'; break;
+        case ComparisonStatus.MATCH: statusText = 'ตรงกัน'; break;
+        case ComparisonStatus.MISMATCH: statusText = 'ไม่ตรงกัน'; break;
+        case ComparisonStatus.MISSING_IN_CHECK: statusText = 'ขาด'; break;
+        case ComparisonStatus.EXTRA_IN_CHECK: statusText = 'เกิน'; break;
         case ComparisonStatus.EMPTY_BOTH: statusText = '-'; break;
       }
 
       return {
-        'No.': row.id + 1,
-        'Source (ต้นฉบับ)': row.sourceValue,
-        'Script (ตรวจสอบ)': row.checkValue,
-        'Status (สถานะ)': statusText,
-        'Note (หมายเหตุ)': row.explanation || ''
+        'ลำดับ': row.id + 1,
+        'ต้นฉบับ': row.sourceValue,
+        'ตรวจสอบ': row.checkValue,
+        'สถานะ': statusText,
+        'หมายเหตุ': row.explanation || ''
       };
     });
 
-    // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-
-    // Set column widths
-    const wscols = [
-      { wch: 6 },  // No.
-      { wch: 30 }, // Source
-      { wch: 30 }, // Check
-      { wch: 20 }, // Status
-      { wch: 20 }  // Note
-    ];
-    ws['!cols'] = wscols;
-
-    XLSX.utils.book_append_sheet(wb, ws, "Comparison Results");
-
-    // Generate filename with timestamp
-    const date = new Date();
-    const timestamp = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}_${date.getHours().toString().padStart(2, '0')}${date.getMinutes().toString().padStart(2, '0')}`;
     
-    XLSX.writeFile(wb, `Comparison_Result_${timestamp}.xlsx`);
+    // Set column widths
+    ws['!cols'] = [{ wch: 6 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 20 }];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Diff Report");
+    const date = new Date();
+    const timestamp = `${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Diff_Report_${timestamp}.xlsx`);
   };
 
   const handlePaste = (e: React.ClipboardEvent, setter: React.Dispatch<React.SetStateAction<string>>) => {
-     // Textarea default paste behavior is usually sufficient
+     // Default paste behavior handled by textarea usually, 
+     // but explicit handling can be added here if we want to pre-process paste data.
   };
 
   return (
-    <div className="min-h-screen bg-[#fffdf5] flex flex-col font-sans text-slate-900">
+    <div className="min-h-screen bg-gray-100 flex flex-col font-sans text-slate-900">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col xl:flex-row justify-between items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col xl:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3 self-start xl:self-center">
-            <div className="bg-yellow-500 p-2 rounded-lg shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <div className="bg-gray-800 p-2 rounded-lg shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Excel AI Comparator</h1>
-              <p className="text-xs text-gray-500">เปรียบเทียบข้อมูลด้วย AI ผู้เชี่ยวชาญ</p>
+              <h1 className="text-lg font-bold text-gray-800">โปรแกรมเปรียบเทียบข้อมูล Excel AI</h1>
             </div>
           </div>
           
           <div className="flex flex-col md:flex-row items-center gap-4 self-end xl:self-center w-full md:w-auto">
-             <div className="flex gap-2 text-xs font-medium overflow-x-auto max-w-full pb-1 md:pb-0">
-                <div className="px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded whitespace-nowrap">ตรงกัน: {stats.match}</div>
-                <div className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded whitespace-nowrap">ไม่ตรง: {stats.mismatch}</div>
-                <div className="px-2 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded whitespace-nowrap">ขาด: {stats.missing}</div>
-                <div className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded whitespace-nowrap">เกิน: {stats.extra}</div>
+             <div className="flex gap-2 text-xs font-medium bg-gray-50 p-1 rounded-md border border-gray-200">
+                <div className="px-2 py-1 bg-green-100 text-green-700 rounded shadow-sm">ตรงกัน: {stats.match}</div>
+                <div className="px-2 py-1 bg-red-100 text-red-700 rounded shadow-sm">ต่างกัน: {stats.mismatch}</div>
+                <div className="px-2 py-1 bg-orange-100 text-orange-700 rounded">ขาด: {stats.missing}</div>
+                <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded">เกิน: {stats.extra}</div>
              </div>
              
              <div className="flex items-center gap-2 w-full md:w-auto">
                 <button 
                   onClick={handleExportExcel}
                   disabled={results.length === 0}
-                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md font-semibold text-white text-sm transition-all shadow-sm
-                    ${results.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 hover:shadow-md'}`}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md font-semibold text-white text-xs transition-all shadow-sm
+                    ${results.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Export Excel
+                  ส่งออก Excel
                 </button>
 
                 <button 
                   onClick={handleAiAnalysis}
                   disabled={isAnalyzing || (!sourceInput && !checkInput)}
-                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md font-semibold text-white text-sm transition-all shadow-sm
-                    ${isAnalyzing || (!sourceInput && !checkInput) ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:shadow-md'}`}
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md font-semibold text-white text-xs transition-all shadow-sm
+                    ${isAnalyzing || (!sourceInput && !checkInput) ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                 >
-                  {isAnalyzing ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      กำลังวิเคราะห์...
-                    </>
-                  ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      AI Expert Analysis
-                    </>
-                  )}
+                  {isAnalyzing ? 'กำลังวิเคราะห์...' : 'วิเคราะห์ AI'}
                 </button>
              </div>
           </div>
@@ -238,123 +203,56 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)] lg:h-[calc(100vh-80px)] overflow-hidden">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-80px)] overflow-hidden">
         
         {/* Column 1: Source */}
-        <div className="flex flex-col h-full bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden order-1">
-          <div className="bg-[#fffdf0] px-4 py-3 border-b border-yellow-200 flex justify-between items-center">
-            <label className="font-semibold text-gray-700 flex items-center gap-2 text-sm">
-              <span className="w-5 h-5 rounded-full bg-gray-700 text-white flex items-center justify-center text-xs font-bold">1</span>
-              ต้นฉบับ (Source)
-            </label>
-            <span className="text-xs text-gray-400">Column A</span>
-          </div>
-          <textarea
-            className="flex-1 p-4 resize-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-yellow-400 font-mono text-sm leading-6 whitespace-pre bg-yellow-50"
-            placeholder="วางข้อมูลต้นฉบับที่นี่..."
-            value={sourceInput}
-            onChange={(e) => setSourceInput(e.target.value)}
-            onPaste={(e) => handlePaste(e, setSourceInput)}
-            spellCheck={false}
-          />
-        </div>
+        <InputPanel 
+          label="ข้อมูลต้นฉบับ"
+          subLabel="คอลัมน์ A"
+          value={sourceInput}
+          onChange={setSourceInput}
+          onPaste={handlePaste}
+          number={1}
+        />
 
-        {/* Column 2: Check (Script) */}
-        <div className="flex flex-col h-full bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden order-2">
-          <div className="bg-[#fffdf0] px-4 py-3 border-b border-yellow-200 flex justify-between items-center">
-            <label className="font-semibold text-gray-700 flex items-center gap-2 text-sm">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">2</span>
-              ตรวจสอบ (Script)
-            </label>
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Column B</span>
-                 {checkInput && (
-                     <button 
-                        className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                        onClick={() => setCheckInput('')}
-                     >
-                       Clear
-                     </button>
-                 )}
-            </div>
-          </div>
-          <textarea
-            className="flex-1 p-4 resize-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-400 font-mono text-sm leading-6 whitespace-pre bg-yellow-50"
-            placeholder="วางข้อมูลที่จะตรวจสอบที่นี่..."
-            value={checkInput}
-            onChange={(e) => setCheckInput(e.target.value)}
-             onPaste={(e) => handlePaste(e, setCheckInput)}
-            spellCheck={false}
-          />
-        </div>
+        {/* Column 2: Check */}
+        <InputPanel 
+          label="ข้อมูลตรวจสอบ"
+          subLabel="คอลัมน์ B"
+          value={checkInput}
+          onChange={setCheckInput}
+          onPaste={handlePaste}
+          onClear={() => setCheckInput('')}
+          number={2}
+        />
 
         {/* Column 3: Results */}
-        <div className="flex flex-col h-full bg-yellow-50 rounded-xl shadow-sm border border-yellow-200 overflow-hidden relative order-3">
-          <div className="bg-[#fffdf0] px-4 py-3 border-b border-yellow-200 flex justify-between items-center z-10">
+        <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative order-3">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center z-10">
             <label className="font-semibold text-gray-700 flex items-center gap-2 text-sm">
-              <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">3</span>
-              ผลลัพธ์ (Results)
+              <span className="w-5 h-5 rounded-full bg-gray-600 text-white flex items-center justify-center text-xs font-bold">3</span>
+              ผลการเปรียบเทียบ
             </label>
-            <span className="text-xs text-gray-400">Comparison Status</span>
+            <span className="text-xs text-gray-400">ตัวอย่าง</span>
           </div>
 
-          {/* AI Analysis Result Panel (Overlay or top section) */}
-          {aiAnalysis && (
-            <div className="bg-indigo-50 border-b border-indigo-100 p-4 animate-fadeIn">
-                <div className="flex items-start gap-3">
-                    <div className="p-2 bg-indigo-100 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="text-sm font-bold text-indigo-900 mb-1">AI Expert Analysis</h3>
-                        <p className="text-sm text-indigo-800 mb-2">{aiAnalysis.summary}</p>
-                        
-                        {aiAnalysis.patternDetected && (
-                            <div className="text-xs bg-white/50 p-2 rounded mb-2 border border-indigo-100">
-                                <strong>Pattern:</strong> {aiAnalysis.patternDetected}
-                            </div>
-                        )}
-
-                        {aiAnalysis.suggestions && aiAnalysis.suggestions.length > 0 && (
-                            <div className="mt-2">
-                                <span className="text-xs font-semibold text-indigo-900 uppercase tracking-wide">ข้อแนะนำ:</span>
-                                <ul className="list-disc list-inside text-xs text-indigo-800 mt-1 space-y-1">
-                                    {aiAnalysis.suggestions.map((s, idx) => (
-                                        <li key={idx}>{s}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                     <button onClick={() => setAiAnalysis(null)} className="text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-          )}
+          <AnalysisResult analysis={aiAnalysis} onClose={() => setAiAnalysis(null)} />
 
           {/* Results List */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar bg-yellow-50">
-            <div className="sticky top-0 bg-[#fffdf0] border-b border-yellow-200 grid grid-cols-12 gap-2 py-2 px-4 text-xs font-semibold text-gray-500 z-0">
-                <div className="col-span-1">#</div>
-                <div className="col-span-4">Source</div>
-                <div className="col-span-4">Script</div>
-                <div className="col-span-3">Status</div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
+            <div className="sticky top-0 bg-gray-50 border-b border-gray-200 grid grid-cols-12 gap-0 py-2 px-2 text-[10px] uppercase tracking-wider font-semibold text-gray-500 z-10">
+                <div className="col-span-1 text-center">ลำดับ</div>
+                <div className="col-span-4 px-2">ต้นฉบับ</div>
+                <div className="col-span-4 px-2">ตรวจสอบ</div>
+                <div className="col-span-3 px-2">สถานะ</div>
             </div>
             
             {results.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <p>วางข้อมูลเพื่อเริ่มการเปรียบเทียบ</p>
+                <div className="flex flex-col items-center justify-center h-48 text-gray-300 text-sm">
+                    <p>ไม่มีข้อมูลเปรียบเทียบ</p>
                 </div>
             ) : (
-                <div className="divide-y divide-yellow-100">
+                <div className="divide-y divide-gray-100">
                     {results.map((row, index) => (
                         <ComparisonRow key={row.id} row={row} index={index} />
                     ))}

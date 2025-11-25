@@ -1,5 +1,5 @@
 {
-  "name": "Excel AI Comparator",
-  "description": "An intelligent tool to compare two datasets (Source vs Check) and identify matches, mismatches, missing data, or extra entries, enhanced with AI analysis.",
+  "name": "โปรแกรมเปรียบเทียบข้อมูล Excel AI",
+  "description": "เครื่องมืออัจฉริยะสำหรับเปรียบเทียบชุดข้อมูลสองชุด (ต้นฉบับ vs ตรวจสอบ) และระบุสิ่งที่ตรงกัน, ไม่ตรงกัน, ข้อมูลที่ขาดหาย หรือข้อมูลส่วนเกิน พร้อมการวิเคราะห์ด้วย AI",
   "requestFramePermissions": []
 }

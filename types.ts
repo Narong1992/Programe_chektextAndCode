@@ -17,4 +17,5 @@ export interface RowResult {
 export interface AiAnalysisResult {
   summary: string;
   suggestions: string[];
+  patternDetected?: string;
 }
